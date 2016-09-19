@@ -24,8 +24,10 @@
 // For more information, please refer to <http://unlicense.org/>
 
 #ifdef _MSC_VER
-// Disable warning about not inlining 'inline' functions
+// Disable warning about not inlining inline functions
 #pragma warning(disable : 4710)
+// Disable warning about inlining non-inline functions
+#pragma warning(disable : 4711)
 #pragma warning(push, 1)
 
 // Disable warning in the CRT
@@ -33,6 +35,7 @@
 #endif
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <map>
 #include <vector>
