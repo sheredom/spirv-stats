@@ -404,14 +404,16 @@ int main(const int argc, const char *const argv[]) {
     fclose(file);
   }
 
-  std::vector<std::pair<uint32_t, std::pair<uint32_t, uint32_t>>> hitsVector(
+  typedef std::pair<uint32_t, std::pair<uint32_t, uint32_t>> MapPair;
+
+  std::vector<MapPair> hitsVector(
       hits.begin(), hits.end());
 
   std::sort(hitsVector.begin(), hitsVector.end(),
-            [](auto a, auto b) { return a.second.first > b.second.first; });
+            [](MapPair a, MapPair b) { return a.second.first > b.second.first; });
 
   printf("Totals: %llu hits %llu bytes\n", totalHits, totalBytes);
-  for (auto i : hitsVector) {
+  for (MapPair i : hitsVector) {
     printf("%30s = %6u hits (%5.2f%%) %6u bytes (%5.2f%%)\n",
            opcodes.at(i.first), i.second.first,
            static_cast<double>(i.second.first) / totalHits * 100.0,
