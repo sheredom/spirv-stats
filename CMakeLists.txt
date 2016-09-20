@@ -30,16 +30,13 @@ add_executable(spirv-stats
   spirv-stats.cpp
 )
 
-# require C++11
-target_compile_features(spirv-stats PRIVATE cxx_range_for)
-
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
   set_source_files_properties(spirv-stats.cpp PROPERTIES
-    COMPILE_FLAGS "-Wall -Wextra -Werror"
+    COMPILE_FLAGS "-Wall -Wextra -Werror -std=c++11"
   )
 elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
   set_source_files_properties(spirv-stats.cpp PROPERTIES
-    COMPILE_FLAGS "-Wall -Wextra -Weverything -Werror"
+    COMPILE_FLAGS "-Wall -Wextra -Weverything -Werror -Wno-c++98-compat -std=c++11"
   )
 elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
   set_source_files_properties(spirv-stats.cpp PROPERTIES
