@@ -350,7 +350,7 @@ int main(const int argc, const char *const argv[]) {
   opcodes[4421] = "OpSubgroupBallotKHR";
   opcodes[4422] = "OpSubgroupFirstInvocationKHR";
 
-  std::map<uint32_t, std::pair<uint32_t, uint32_t>> hits;
+  std::map<uint32_t, std::pair<uint32_t, uint32_t> > hits;
   uint64_t totalHits = 0;
   uint64_t totalBytes = 0;
 
@@ -406,7 +406,7 @@ int main(const int argc, const char *const argv[]) {
     fclose(file);
   }
 
-  typedef std::pair<uint32_t, std::pair<uint32_t, uint32_t>> MapPair;
+  typedef std::pair<uint32_t, std::pair<uint32_t, uint32_t> > MapPair;
 
   std::vector<MapPair> hitsVector(hits.begin(), hits.end());
 
