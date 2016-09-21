@@ -1,5 +1,9 @@
 # spirv-stats #
 
+[![Build status](https://ci.appveyor.com/api/projects/status/m6teyt0y958xbpy5?svg=true)](https://ci.appveyor.com/project/sheredom/spirv-stats)
+
+[![Build status](https://api.travis-ci.org/repositories/sheredom/spirv-stats.svg)](https://travis-ci.org/sheredom/spirv-stats)
+
 spirv-stats is a command line tool to take one or more SPIR-V modules, and output statistics on the composition of the module.
 
 ## Build ##
