@@ -36,7 +36,7 @@ if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
   )
 elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
   set_source_files_properties(spirv-stats.cpp PROPERTIES
-    COMPILE_FLAGS "-Wall -Wextra -Weverything -Werror"
+    COMPILE_FLAGS "-Wall -Wextra -Weverything -Werror -Wno-c++11-long-long"
   )
 elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
   set_source_files_properties(spirv-stats.cpp PROPERTIES
