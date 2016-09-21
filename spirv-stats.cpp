@@ -34,7 +34,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
-#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -418,15 +417,18 @@ int main(const int argc, const char *const argv[]) {
 
   std::sort(hitsVector.begin(), hitsVector.end(), Helper::_);
 
-  printf("Totals: %" PRIu64 " hits %" PRIu64 " bytes\n", totalHits, totalBytes);
+  printf("Totals: %llu hits %llu bytes\n",
+         static_cast<unsigned long long>(totalHits),
+         static_cast<unsigned long long>(totalBytes));
 
   for (std::vector<MapPair>::iterator i = hitsVector.begin(),
                                       i_e = hitsVector.end();
        i != i_e; ++i) {
-    printf("%30s = %6" PRIu32 " hits (%5.2f%%) %6" PRIu32 " bytes (%5.2f%%)\n",
-           opcodes.at(i->first), i->second.first,
+    printf("%30s = %6llu hits (%5.2f%%) %6llu bytes (%5.2f%%)\n",
+           opcodes.at(i->first),
+           static_cast<unsigned long long>(i->second.first),
            static_cast<double>(i->second.first) / totalHits * 100.0,
-           i->second.second,
+           static_cast<unsigned long long>(i->second.second),
            static_cast<double>(i->second.second) / totalBytes * 100.0);
   }
 }
