@@ -50,6 +50,17 @@ static const uint32_t magicNumber = 0x07230203u;
 static const uint32_t reserveMagicNumber = 0x03022307u;
 static const uint32_t numWordsInHeader = 5u;
 
+static const uint32_t opConstant = 43u;
+static const uint32_t opVariable = 59u;
+static const uint32_t opLoad = 61u;
+static const uint32_t opStore = 62u;
+static const uint32_t opAccessChain = 65u;
+static const uint32_t opDecorate = 71u;
+static const uint32_t opMemberDecorate = 72u;
+static const uint32_t opVectorShuffle = 79u;
+static const uint32_t opCompositeConstruct = 80u;
+static const uint32_t opCompositeExtract = 81u;
+
 int main(const int argc, const char *const argv[]) {
   std::map<uint32_t, const char *> opcodes;
   opcodes[0] = "OpNop";
@@ -353,6 +364,33 @@ int main(const int argc, const char *const argv[]) {
   uint64_t totalHits = 0;
   uint64_t totalBytes = 0;
 
+  uint64_t loadsWithMemoryAccess = 0;
+  uint64_t storesWithMemoryAccess = 0;
+  uint64_t decorateWithLiteral = 0;
+  uint64_t decorateWithTwoOrMoreLiterals = 0;
+  const unsigned decorationMax = 45;
+  uint64_t decorationUsed[decorationMax] = {0};
+  uint64_t memberDecorateWithLiteral = 0;
+  uint64_t memberDecorateWithTwoOrMoreLiterals = 0;
+  const unsigned memberDecorationMax = 45;
+  uint64_t memberDecorationUsed[memberDecorationMax] = {0};
+  const unsigned accessChainMax = 6;
+  uint64_t accessChainNumIndices[accessChainMax] = {0};
+  uint64_t variableHasInitializer = 0;
+  uint64_t constantHasTwoOrMoreLiterals = 0;
+  const unsigned vectorShuffleMax = 6;
+  uint64_t vectorShuffleNumLiterals[vectorShuffleMax] = {0};
+  uint64_t vectorShuffleHasUndefLiteral = 0;
+  uint64_t vectorShuffleHasAllLiteralsLessThan4 = 0;
+  uint64_t vectorShuffleHasAllLiteralsLessThan8 = 0;
+  uint64_t vectorShuffleUsesTheSameVectorTwice = 0;
+  const unsigned compositeConstructMax = 6;
+  uint64_t compositeConstructNumLiterals[compositeConstructMax] = {0};
+  const unsigned compositeExtractMax = 4;
+  uint64_t compositeExtractNumLiterals[compositeExtractMax] = {0};
+  const unsigned compositeExtractFirstLiteralMax = 5;
+  uint64_t compositeExtractFirstLiteral[compositeExtractFirstLiteralMax] = {0};
+
   for (int i = 1; i < argc; i++) {
     FILE *file = fopen(argv[i], "rb");
 
@@ -391,15 +429,148 @@ int main(const int argc, const char *const argv[]) {
       const uint32_t wordCount = word >> 16;
       const uint32_t opcode = word & 0xFFFFu;
 
+      switch (opcode) {
+      default:
+        break;
+      case opLoad:
+        if (5 == wordCount) {
+          loadsWithMemoryAccess++;
+        }
+        break;
+      case opStore:
+        if (4 == wordCount) {
+          storesWithMemoryAccess++;
+        }
+        break;
+      case opDecorate:
+        if (4 == wordCount) {
+          decorateWithLiteral++;
+        } else if (4 < wordCount) {
+          decorateWithTwoOrMoreLiterals++;
+        }
+        break;
+      case opMemberDecorate:
+        if (5 == wordCount) {
+          memberDecorateWithLiteral++;
+        } else if (5 < wordCount) {
+          memberDecorateWithTwoOrMoreLiterals++;
+        }
+        break;
+      case opAccessChain:
+        accessChainNumIndices[(wordCount - 4) < accessChainMax ? wordCount - 4 : accessChainMax - 1]++;
+        break;
+      case opVariable:
+        if (5 == wordCount) {
+          variableHasInitializer++;
+        }
+        break;
+      case opConstant:
+        if (4 < wordCount) {
+          constantHasTwoOrMoreLiterals++;
+        }
+        break;
+      case opVectorShuffle:
+        vectorShuffleNumLiterals[(wordCount - 5) < vectorShuffleMax ? wordCount - 5 : vectorShuffleMax - 1]++;
+        break;
+    case opCompositeConstruct:
+        compositeConstructNumLiterals[(wordCount - 4) < compositeConstructMax ? wordCount - 4 : compositeConstructMax - 1]++;
+        break;
+    case opCompositeExtract:
+        compositeExtractNumLiterals[(wordCount - 4) < compositeExtractMax ? wordCount - 4 : compositeExtractMax - 1]++;
+        break;
+      }
+
       hits[opcode].first++;
       hits[opcode].second += sizeof(uint32_t) * wordCount;
 
       totalHits++;
       totalBytes += sizeof(uint32_t) * wordCount;
 
-      // skip the remaining words in the opcode
-      fseek(file, static_cast<long>(sizeof(uint32_t) * (wordCount - 1)),
+      switch (opcode) {
+      default:
+          // skip the remaining words in the opcode
+          fseek(file, static_cast<long>(sizeof(uint32_t) * (wordCount - 1)),
+                SEEK_CUR);
+                  break;
+        case opVectorShuffle: {
+         // skip the start of the opcode
+         
+          fseek(file, static_cast<long>(sizeof(uint32_t) * 2),
+                SEEK_CUR);
+
+          fread(&word, sizeof(word), 1, file);
+          const uint32_t temp = word;
+          fread(&word, sizeof(word), 1, file);
+
+          if (temp == word) {
+            vectorShuffleUsesTheSameVectorTwice++;
+          }
+
+            bool aLiteralIsUndef = false;
+            bool aLiteralIsGreaterThanOrEqualTo4 = false;
+            bool aLiteralIsGreaterThanOrEqualTo8 = false;
+            for (uint32_t k = 5; k < wordCount; k++) {
+                fread(&word, sizeof(word), 1, file);
+
+                aLiteralIsUndef |= (0xFFFFFFFFu == word);
+                aLiteralIsGreaterThanOrEqualTo4 |= 4 <= word;
+                aLiteralIsGreaterThanOrEqualTo8 |= 8 <= word;
+            }
+
+            if (aLiteralIsUndef) {
+                vectorShuffleHasUndefLiteral++;
+            }
+
+            if (!aLiteralIsGreaterThanOrEqualTo4) {
+                vectorShuffleHasAllLiteralsLessThan4++;
+            } else if (!aLiteralIsGreaterThanOrEqualTo8) {
+                vectorShuffleHasAllLiteralsLessThan8++;
+            }
+        }break;
+    case opCompositeExtract:
+     // skip the start of the opcode
+     
+      fseek(file, static_cast<long>(sizeof(uint32_t) * 3),
             SEEK_CUR);
+        if (5 == wordCount) {
+          fread(&word, sizeof(word), 1, file);
+
+          if (word < compositeExtractFirstLiteralMax) {
+            compositeExtractFirstLiteral[word]++;
+          }
+        } else {
+            // skip the rest of the opcode
+        fseek(file, static_cast<long>(sizeof(uint32_t) * (wordCount - 4)),
+            SEEK_CUR);
+        }
+        break;
+    case opDecorate:
+      fseek(file, static_cast<long>(sizeof(uint32_t) * 1),
+            SEEK_CUR);
+
+      fread(&word, sizeof(word), 1, file);
+
+      if (word < decorationMax) {
+        decorationUsed[word]++;
+      }
+
+      fseek(file, static_cast<long>(sizeof(uint32_t) * (wordCount - 3)),
+            SEEK_CUR);
+      break;
+    case opMemberDecorate:
+      fseek(file, static_cast<long>(sizeof(uint32_t) * 2),
+            SEEK_CUR);
+
+      fread(&word, sizeof(word), 1, file);
+
+      if (word < memberDecorationMax) {
+        memberDecorationUsed[word]++;
+      }
+
+      fseek(file, static_cast<long>(sizeof(uint32_t) * (wordCount - 4)),
+            SEEK_CUR);
+      break;
+    }
     }
 
     fclose(file);
@@ -424,11 +595,177 @@ int main(const int argc, const char *const argv[]) {
   for (std::vector<MapPair>::iterator i = hitsVector.begin(),
                                       i_e = hitsVector.end();
        i != i_e; ++i) {
-    printf("%30s = %6llu hits (%5.2f%%) %6llu bytes (%5.2f%%)\n",
+    printf("%30s[%3u] = %6llu hits (%5.2f%%) %6llu bytes (%5.2f%%)\n",
            opcodes.at(i->first),
+           i->first,
            static_cast<unsigned long long>(i->second.first),
            static_cast<double>(i->second.first) / totalHits * 100.0,
            static_cast<unsigned long long>(i->second.second),
            static_cast<double>(i->second.second) / totalBytes * 100.0);
+
+    switch (i->first) {
+        default:
+            break;
+    case opStore:
+        printf("%30s %6llu hits with memory access %5.2f%%\n",
+            "",
+            static_cast<unsigned long long>(storesWithMemoryAccess),
+            static_cast<double>(storesWithMemoryAccess) / i->second.first * 100.0);
+            break;
+  case opLoad:
+        printf("%30s %6llu hits with memory access %5.2f%%\n",
+            "",
+            static_cast<unsigned long long>(loadsWithMemoryAccess),
+            static_cast<double>(loadsWithMemoryAccess) / i->second.first * 100.0);
+            break;
+    case opDecorate:
+        printf("%30s %6llu hits with no literals   %5.2f%%\n",
+            "",
+            static_cast<unsigned long long>(i->second.first - decorateWithLiteral - decorateWithTwoOrMoreLiterals),
+            static_cast<double>(i->second.first - decorateWithLiteral - decorateWithTwoOrMoreLiterals) / i->second.first * 100.0);
+        printf("%30s %6llu hits with 1 literal     %5.2f%%\n",
+            "",
+            static_cast<unsigned long long>(decorateWithLiteral),
+            static_cast<double>(decorateWithLiteral) / i->second.first * 100.0);
+        printf("%30s %6llu hits with 2+ literals   %5.2f%%\n",
+            "",
+            static_cast<unsigned long long>(decorateWithTwoOrMoreLiterals),
+            static_cast<double>(decorateWithTwoOrMoreLiterals) / i->second.first * 100.0);
+
+        printf("%32s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n", "");
+        for (unsigned k = 0; k < decorationMax; k++) {
+            if (0 < decorationUsed[k]) {
+            printf("%30s %6llu hits of decoration %2u   %5.2f%%\n",
+                "",
+                static_cast<unsigned long long>(decorationUsed[k]),
+                k,
+                static_cast<double>(decorationUsed[k]) / i->second.first * 100.0);
+            }
+        }
+        break;
+    case opMemberDecorate:
+        printf("%30s %6llu hits with no literals   %5.2f%%\n",
+            "",
+            static_cast<unsigned long long>(i->second.first - memberDecorateWithLiteral - memberDecorateWithTwoOrMoreLiterals),
+            static_cast<double>(i->second.first - memberDecorateWithLiteral - memberDecorateWithTwoOrMoreLiterals) / i->second.first * 100.0);
+        printf("%30s %6llu hits with 1 literal     %5.2f%%\n",
+            "",
+            static_cast<unsigned long long>(memberDecorateWithLiteral),
+            static_cast<double>(memberDecorateWithLiteral) / i->second.first * 100.0);
+        printf("%30s %6llu hits with 2+ literals   %5.2f%%\n",
+            "",
+            static_cast<unsigned long long>(memberDecorateWithTwoOrMoreLiterals),
+            static_cast<double>(memberDecorateWithTwoOrMoreLiterals) / i->second.first * 100.0);
+
+        printf("%32s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n", "");
+        for (unsigned k = 0; k < memberDecorationMax; k++) {
+            if (0 < memberDecorationUsed[k]) {
+            printf("%30s %6llu hits of decoration %2u   %5.2f%%\n",
+                "",
+                static_cast<unsigned long long>(memberDecorationUsed[k]),
+                k,
+                static_cast<double>(memberDecorationUsed[k]) / i->second.first * 100.0);
+            }
+        }
+        break;
+    case opAccessChain:
+        for (unsigned k = 0; k < accessChainMax - 1; k++) {
+            printf("%30s %6llu hits with %u %s     %5.2f%%\n",
+                "",
+                static_cast<unsigned long long>(accessChainNumIndices[k]),
+                k, (k == 1) ? "index  " : "indices",
+                static_cast<double>(accessChainNumIndices[k]) / i->second.first * 100.0);
+        }
+        printf("%30s %6llu hits with %u+ indices    %5.2f%%\n",
+            "",
+            static_cast<unsigned long long>(accessChainNumIndices[accessChainMax - 1]),
+            accessChainMax - 1,
+            static_cast<double>(accessChainNumIndices[accessChainMax - 1]) / i->second.first * 100.0);
+        break;
+  case opVariable:
+        printf("%30s %6llu hits with initializer   %5.2f%%\n",
+            "",
+            static_cast<unsigned long long>(variableHasInitializer),
+            static_cast<double>(variableHasInitializer) / i->second.first * 100.0);
+            break;
+  case opConstant:
+        printf("%30s %6llu hits have 1 literal    %6.2f%%\n",
+            "",
+            static_cast<unsigned long long>(i->second.first - constantHasTwoOrMoreLiterals),
+            static_cast<double>(i->second.first - constantHasTwoOrMoreLiterals) / i->second.first * 100.0);
+        printf("%30s %6llu hits have 2+ literals  %6.2f%%\n",
+            "",
+            static_cast<unsigned long long>(constantHasTwoOrMoreLiterals),
+            static_cast<double>(constantHasTwoOrMoreLiterals) / i->second.first * 100.0);
+            break;
+    case opVectorShuffle:
+        for (unsigned k = 0; k < vectorShuffleMax - 1; k++) {
+            printf("%30s %6llu hits with %u %s    %5.2f%%\n",
+                "",
+                static_cast<unsigned long long>(vectorShuffleNumLiterals[k]),
+                k, (k == 1) ? "literal " : "literals",
+                static_cast<double>(vectorShuffleNumLiterals[k]) / i->second.first * 100.0);
+        }
+        printf("%30s %6llu hits with %u+ literals   %5.2f%%\n",
+            "",
+            static_cast<unsigned long long>(vectorShuffleNumLiterals[vectorShuffleMax - 1]),
+            vectorShuffleMax - 1,
+            static_cast<double>(vectorShuffleNumLiterals[vectorShuffleMax - 1]) / i->second.first * 100.0);
+        printf("%32s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n", "");
+        printf("%30s %6llu hits with undef literal%6.2f%%\n",
+            "",
+            static_cast<unsigned long long>(vectorShuffleHasUndefLiteral),
+            static_cast<double>(vectorShuffleHasUndefLiteral) / i->second.first * 100.0);
+        printf("%30s %6llu hits with literals < 4 %6.2f%%\n",
+            "",
+            static_cast<unsigned long long>(vectorShuffleHasAllLiteralsLessThan4),
+            static_cast<double>(vectorShuffleHasAllLiteralsLessThan4) / i->second.first * 100.0);
+        printf("%30s %6llu hits with literals < 8 %6.2f%%\n",
+            "",
+            static_cast<unsigned long long>(vectorShuffleHasAllLiteralsLessThan8),
+            static_cast<double>(vectorShuffleHasAllLiteralsLessThan8) / i->second.first * 100.0);
+        printf("%32s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n", "");
+        printf("%30s %6llu hits with same vector  %6.2f%%\n",
+            "",
+            static_cast<unsigned long long>(vectorShuffleUsesTheSameVectorTwice),
+            static_cast<double>(vectorShuffleUsesTheSameVectorTwice) / i->second.first * 100.0);
+        break;
+    case opCompositeConstruct:
+        for (unsigned k = 0; k < compositeConstructMax - 1; k++) {
+            printf("%30s %6llu hits with %u %s    %5.2f%%\n",
+                "",
+                static_cast<unsigned long long>(compositeConstructNumLiterals[k]),
+                k, (k == 1) ? "literal " : "literals",
+                static_cast<double>(compositeConstructNumLiterals[k]) / i->second.first * 100.0);
+        }
+        printf("%30s %6llu hits with %u+ literals   %5.2f%%\n",
+            "",
+            static_cast<unsigned long long>(compositeConstructNumLiterals[compositeConstructMax - 1]),
+            compositeConstructMax - 1,
+            static_cast<double>(vectorShuffleNumLiterals[compositeConstructMax - 1]) / i->second.first * 100.0);
+        break;
+    case opCompositeExtract:
+        for (unsigned k = 0; k < compositeExtractMax - 1; k++) {
+            printf("%30s %6llu hits with %u %s    %5.2f%%\n",
+                "",
+                static_cast<unsigned long long>(compositeExtractNumLiterals[k]),
+                k, (k == 1) ? "literal " : "literals",
+                static_cast<double>(compositeExtractNumLiterals[k]) / i->second.first * 100.0);
+        }
+        printf("%30s %6llu hits with %u+ literals   %5.2f%%\n",
+            "",
+            static_cast<unsigned long long>(compositeExtractNumLiterals[compositeExtractMax - 1]),
+            compositeExtractMax - 1,
+            static_cast<double>(vectorShuffleNumLiterals[compositeExtractMax - 1]) / i->second.first * 100.0);
+        printf("%32s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n", "");
+        for (unsigned k = 0; k < compositeExtractFirstLiteralMax; k++) {
+            printf("%30s %6llu hits with literal = %2u %6.2f%%\n",
+                "",
+                static_cast<unsigned long long>(compositeExtractFirstLiteral[k]),
+                k,
+                static_cast<double>(compositeExtractFirstLiteral[k]) / i->second.first * 100.0);
+        }
+        break;
+    }
   }
 }
